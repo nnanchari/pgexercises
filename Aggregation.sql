@@ -100,3 +100,53 @@ having sum(slots)=
 with t as (select facid, sum(slots) as s from cd.bookings group by facid)
 
 select facid,s from t where s=(select max(s) from t)
+
+
+-- List the total slots booked per facility per month, part 2
+-- Question
+-- Produce a list of the total number of slots booked per facility per month in the year of 2012. In this version, include output rows containing totals for all months per facility, and a total for all months for all facilities. The output table should consist of facility id, month and slots, sorted by the id and month. When calculating the aggregated values for all months and all facids, return null values in the month and facid columns.
+
+with temp as (select facid,extract(month from starttime) as m,slots
+from cd.bookings 
+where extract(year from starttime)='2012'  
+)
+
+select facid,m,sum(slots) from temp group by facid,m
+union 
+select facid,null,sum(slots) from temp group by facid
+union 
+select null,null,sum(slots) from temp
+order by facid,m
+
+
+-- List the total hours booked per named facility
+-- Question
+-- Produce a list of the total number of hours booked per facility, remembering that a slot lasts half an hour. The output table should consist of the facility id, name, and hours booked, sorted by facility id. Try formatting the hours to two decimal places.
+
+select b.facid,f.name, round(sum(b.slots)/2.0,2) as totalhours
+from cd.bookings b join cd.facilities f
+on b.facid=f.facid
+group by 1,2
+order by 1
+
+
+
+-- List each members first booking after September 1st 2012
+-- Question
+-- Produce a list of each member name, id, and their first booking after September 1st 2012. Order by member ID.
+
+
+select m.surname,m.firstname,m.memid,min(b.starttime) 
+from cd.members m join cd.bookings b
+on m.memid=b.memid
+where b.starttime> '2012-09-01'
+group by 1,2,3
+order by 3
+
+
+-- Produce a list of member names, with each row containing the total member count
+-- Question
+-- Produce a list of member names, with each row containing the total member count. Order by join date.
+
+select count(*) over(),firstname,surname from cd.members
+order by joindate
