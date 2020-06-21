@@ -135,7 +135,6 @@ order by 1
 -- Question
 -- Produce a list of each member name, id, and their first booking after September 1st 2012. Order by member ID.
 
-
 select m.surname,m.firstname,m.memid,min(b.starttime) 
 from cd.members m join cd.bookings b
 on m.memid=b.memid
@@ -150,3 +149,87 @@ order by 3
 
 select count(*) over(),firstname,surname from cd.members
 order by joindate
+
+
+-- Produce a numbered list of members
+-- Question
+-- Produce a monotonically increasing numbered list of members, ordered by their date of joining. Remember that member IDs are not guaranteed to be sequential.
+
+select row_number() over(order by joindate asc),firstname,surname
+from cd.members
+
+
+-- Output the facility id that has the highest number of slots booked, again
+-- Question
+-- Output the facility id that has the highest number of slots booked. Ensure that in the event of a tie, all tieing results get output.
+
+
+with temp as (
+select facid,sum(slots),dense_rank() over(order by sum(slots) desc) as dr from cd.bookings
+group by facid order by sum(slots) desc)
+
+select facid,sum from temp where dr=1
+
+
+-- Rank members by (rounded) hours used
+-- Question
+-- Produce a list of members, along with the number of hours they have booked in facilities, rounded to the nearest ten hours. Rank them by this rounded figure, producing output of first name, surname, rounded hours, rank. Sort by rank, surname, and first name.
+
+
+select m.firstname,m.surname,((sum(b.slots)+10)/20)*10, rank() over(order by ((sum(b.slots)+10)/20)*10 desc) as dr
+ from cd.members m join cd.bookings b on m.memid=b.memid
+group by 1,2
+order by dr,2,1
+
+
+-- Find the top three revenue generating facilities
+-- Question
+-- Produce a list of the top three revenue generating facilities (including ties). Output facility name and rank, sorted by rank and facility name.
+
+select f.name,
+rank() over(order by sum(case when b.memid=0 then slots*guestcost when b.memid<>0 then 
+						 slots*membercost end) desc)
+from cd.bookings b join cd.facilities f
+on b.facid=f.facid
+group by f.name 
+limit 3
+
+with temp as (select f.name,
+rank() over(order by sum(case when b.memid=0 then slots*guestcost when b.memid<>0 then 
+						 slots*membercost end) desc)
+from cd.bookings b join cd.facilities f
+on b.facid=f.facid
+group by f.name 
+)
+select * from temp where rank in (1,2,3)
+
+
+-- Classify facilities by value
+-- Question
+-- Classify facilities into equally sized groups of high, average, and low based on their revenue. Order by classification and facility name.
+
+with temp as (select f.name,
+ntile(3) over(order by sum(case when b.memid=0 then slots*guestcost when b.memid<>0 then 
+						 slots*membercost end) desc) as n
+from cd.bookings b join cd.facilities f
+on b.facid=f.facid
+group by f.name 
+)
+select name,
+case when n=1 then 'high' when n=2 then 'average' when n=3 then 'low' end as revenue
+from temp 
+order by n,name
+
+
+-- Calculate the payback time for each facility
+-- Question
+-- Based on the 3 complete months of data so far, calculate the amount of time each facility will take to repay its cost of ownership. Remember to take into account ongoing monthly maintenance. Output facility name and payback time in months, order by facility name. Don't worry about differences in month lengths, we're only looking for a rough value here!
+
+select f.name, 
+f.initialoutlay/((sum(case when memid=0 then slots*guestcost else slots*membercost end)/3)
+   -f.monthlymaintenance) as m
+from cd.facilities f join cd.bookings b on f.facid=b.facid
+group by f.facid
+order by f.name
+
+
